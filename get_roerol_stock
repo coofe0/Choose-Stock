@@ -1,0 +1,167 @@
+#! /usr/bin/python3
+
+###目的：爬取符合我投资要求的上市公司的股票名称。学习python###
+###路线：网易个股行情网页爬取股票信息，分析财务数据###
+###      扩展到整个国内的上实公司，筛选符合我要求的公司###
+
+import requests
+import re
+import traceback
+from bs4 import BeautifulSoup
+import bs4
+
+
+#-------------获取网页----------------#
+def getHTMLText(url):
+	try:
+		headers={'User-Agent':'Mozilla/5.0'}
+		r=requests.get(url,timeout=20,headers=headers)
+		r.raise_for_status()
+		r.encoding=r.apparent_encoding
+		print(r.status_code)
+		return r.text
+	except:
+		return "Wrong"
+
+#-------------获取财务数据列表---------------#
+def getTableList(html):
+	ls=[]
+	soup=BeautifulSoup(html,'html.parser')		
+	#-------------获得第一列名称-------------#
+	tableLineName=soup.find_all('table')[3]
+	lsn=[]
+	for n in tableLineName.find_all('td'):
+		lsn.append(n.string)
+#	print(lsn)
+	#-------------获得表格内容-------------#
+	table=soup.find_all('table')[4]		#找到我要的表格，查网页上第四个数据表格
+	for t in table.find_all('tr'):		#循环查找表格中找TR标签，T表示表格中的每排
+		tds=t.find_all('td')		#tds表示每排中的一个单元格
+		ts=[]				#定义临时的列表
+		for i in range(len(tds)):	#依次查找每排的单元格
+			ts.append(tds[i].string)#把单元格的字符串加到临时列表中
+		ls.append(ts)			#（每行单元格添加结束后）每排依次添加到总列表中。
+
+	#---------合并表格只取最新数据----------#
+	new_ls={}
+	for k in range(len(lsn)):
+		new_ls.update({lsn[k]:ls[k+1][0]})
+
+#	for key,value in new_ls.items():
+#		print("{:<30}{:^5}{:<10}".format(key,":",value))
+	return new_ls
+
+#---------------------打开并读出文件，转换成list格式------------------------#
+def getAllStockList():
+	with open('allStockList.txt','r',encoding='utf-8') as fl:       
+		t=fl.read()
+#		lis=re.split('\n',t)	
+		lis=re.split('[\[\],]',t)
+		for i in range(len(lis)):
+			t=re.search('\d{6}',lis[i])
+			if t:
+				lis[i]=t.group(0)
+	print(lis[:10])
+	return lis
+
+
+
+#---------------获取最新价格------------------#
+def getPrice(phtml):
+	sp=BeautifulSoup(phtml,'html.parser')
+	a=sp.find_all(string=re.compile("window.stock_info"))		#找到含有window.stock_info字符串的标签
+	a1=''.join(a)							#把列表格式转成字符串格式
+#	print(a1)			
+	a1=re.sub('[,]|[ ]','',a1)					#把字符串中的空格和，替换成空
+	text=re.split("[\r][\n]",a1)					#把字符串用换行符分割成列表格式
+	text=text[2:-2]							#把列表没用的前后去掉
+	print("The text  is:",text)
+	for i in range(len(text)):					
+		p='price'						
+		if p in text[i]:					#依次判断列表中的元素是否含有price
+			getprice=re.search(r'\d+[\.]\d+',text[i])		#假如有则匹配数字，
+			if getprice:
+				print('price:',getprice.group(0))
+				return getprice.group(0)						#返回匹配后的字符串
+			else:
+				return 0
+			
+#-----------------基本面指标计算-------------------#
+#	ROE:综合评价一家公司盈利能力的最佳指标。ROE越高越好，最低标准得15%以上
+#	负债率：负债率代表一家公司承受打击的能力，负债率越低越好，低于50%是最好的。
+#	分红率：分红代表一家公司的诚信.每年股息率能大于一年定期收益是最好的.
+#	毛利率：毛利率往往代表着一家公司的护城河宽度及垄断能力，毛利率越高越好，大于50%是最好的。
+#--------------估值指标计算PE、PB----------------#
+def calculat(price,ls):
+	price=float(price)	
+#	earning=float(ls['基本每股收益(元)'])
+#	book_value=float(ls['每股净资产(元)'])
+	assets=ls['总资产(万元)']
+	assets=int(re.sub(',','',assets))	
+	liability=ls['总负债(万元)']
+	liability=int(re.sub(',','',liability))
+#	pe=price/earning
+#	pb=price/book_value
+	roe=float(ls['净资产收益率加权(%)'])
+	rol=liability/assets	
+	print('ROE:',roe)
+#	print('PE:{:.2f}'.format(pe))
+#	print('PB:{:.2f}'.format(pb))
+	print('负债率：{:.2f}'.format(rol))
+
+	return roe,rol
+
+#-----------------筛选股票-------------------#
+#	ROE>15 & 负债率<60%
+def chooseStock():
+	stockList=getAllStockList()						#获得股票清单
+	sl=stockList[80:]
+	count=0
+	for i in range(len(sl)):
+		print("The stock code is",sl[i])
+		finance_url='http://quotes.money.163.com/f10/zycwzb_'+sl[i]+'.html#01c01'		#财务数据网址
+		price_url='http://quotes.money.163.com/1'+sl[i]+'.html#01a01'			#价格网址
+		finance_html=getHTMLText(finance_url)					#获取财务数据网页
+		if finance_html !="Wrong":
+			finance_ls=getTableList(finance_html)				#获取财务数据
+	
+		phtml=getHTMLText(price_url)					#获得最新股票价格网页
+		if phtml !="Wrong":
+			new_price=getPrice(phtml)					#获得最新股票价格
+			if new_price !=0:
+				try:
+					roe,rol=calculat(new_price,finance_ls)					#计算结果
+					if roe>15 and rol<0.5:
+						count=count+1
+						try:
+							with open('RoeRolStockList2.txt','a',encoding='utf-8') as f:
+								l=f.write(str(sl[i])+'\n')
+								print(l)
+						except:
+							print("写入失败")
+						print("get the ",count,"Stock code:",sl[i])
+					else:
+						print('pass number:',i-count)
+						print('current number::',i)
+				except:
+					print("计算异常")
+
+
+
+
+###################---main()---###################
+if __name__=="__main__":
+	
+	chooseStock()
+#	finance_url='http://quotes.money.163.com/f10/zycwzb_600016.html#01c01'		#财务数据网址
+#	price_url='http://quotes.money.163.com/0600016.html#01a01'			#价格网址
+#
+#	finance_html=getHTMLText(finance_url)				#获取财务数据网页
+#	finance_ls=getTableList(finance_html)				#获取财务数据
+#
+#	phtml=getHTMLText(price_url)					#获得最新股票价格网页
+#	new_price=getPrice(phtml)					#获得最新股票价格
+#
+#	calculat(new_price,finance_ls)					#计算结果
+
+#	stockList=getAllStockList(slhtml)					#获得股票清单
