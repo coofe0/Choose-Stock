@@ -12,7 +12,7 @@ import bs4
 import pandas as pd 
 
 def readsheet():
-	data=pd.read_excel('/home/coofe/ChooseStock/all_finace_sheet.xlsx',sheet_name='300789')
+	data=pd.read_excel('/home/coofe/ChooseStock/all_finance_sheet_done.xlsx',sheet_name='300789')
 	print(data)
 	print(data.iloc[2])
 
