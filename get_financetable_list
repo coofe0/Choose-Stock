@@ -1,0 +1,128 @@
+#! /usr/bin/python3
+
+###目的：爬取符合我投资要求的上市公司的股票名称。学习python###
+###路线：网易个股行情网页爬取股票信息，分析财务数据###
+###      扩展到整个国内的上实公司，筛选符合我要求的公司###
+
+import requests
+import re
+import pandas as pd
+from bs4 import BeautifulSoup
+import numpy as np
+import bs4
+import xlwt
+import openpyxl
+import os
+
+#-------------获取网页----------------#
+def getHTMLText(url):
+	try:
+		headers={'User-Agent':'Mozilla/5.0'}
+		r=requests.get(url,timeout=20,headers=headers)
+		r.raise_for_status()
+		r.encoding=r.apparent_encoding
+		print(r.status_code)
+		return r.text
+	except:
+		return "Wrong"
+
+#-------------获取财务数据列表---------------#
+def getTableList(html):
+	ls=[]
+	soup=BeautifulSoup(html,'html.parser')		
+	#-------------获得第一列名称-------------#
+	tableLineName=soup.find_all('table')[3]
+	lsn=[]						#定义一个空的名称列表
+	for n in tableLineName.find_all('td'):
+		lsn.append(n.string)
+#	print(lsn)
+	#-------------获得表格内容-------------#
+	table=soup.find_all('table')[4]		#找到我要的表格，查网页上第四个数据表格
+	tr=table.find('tr')
+
+	for t in table.find_all('tr'):		#循环查找表格中找TR标签，T表示表格中的每排
+		tds=t.find_all('td')		#tds表示每排中的一个单元格
+		ts=[]				#定义临时空数据列表
+		
+		for i in range(len(tds)):	#依次查找每行的单元格
+			ts.append(tds[i].string)#把单元格的字符串加到临时列表中
+		ls.append(ts)			#（每行单元格添加结束后）每排依次添加到总列表中。
+
+	ls0=[]					#定义空日期
+	tr=table.find('tr')			#table中获得第一个tr
+	ths=tr.find_all('th')			#tr 中找出所有th
+	for k in range(len(ths)):		#
+		ls0.append(ths[k].string)	#依次田间到ts0例表中
+
+	ls[0]=ls0				#ls0作为一个元素写入到ls的第一个
+
+
+	#---------合并表格只取最新数据----------#
+	new_ls={}
+	for k in range(len(lsn)):
+		new_ls.update({lsn[k]:ls[k+1][0]})
+
+#	for key,value in new_ls.items():
+#		print("{:<30}{:^5}{:<10}".format(key,":",value))
+	return lsn,ls
+
+#---------------------打开并读出文件，转换成list格式------------------------#
+def getStockList():
+	with open('RoeRolStockList2.txt','r',encoding='utf-8') as fl:       
+		t=fl.read()
+		lis=re.split('\n',t)	
+#		lis=re.split('[\[\],]',t)
+		for i in range(len(lis)):
+			t=re.search('\d{6}',lis[i])
+			if t:
+				lis[i]=t.group(0)
+	print(lis[:10])
+	return lis
+
+
+#-----------------依次获得每个股票的财务数据并记录-------------------#
+def getFinanceTableList():
+	l=getStockList()	
+	count=0
+	for i in range(len(l)):
+		print("The stock code is",l[i])
+		finance_url='http://quotes.money.163.com/f10/zycwzb_'+l[i]+'.html#01c01'		#财务数据网址
+		finance_html=getHTMLText(finance_url)
+		if finance_html !="Wrong":
+			lsn,ls=getTableList(finance_html)
+			lsn.insert(0,'时间')
+			npdata=np.array(ls)
+			data=pd.DataFrame(npdata,index=lsn)
+			print(data.head())
+
+			if os.path.exists('all_finance_sheet.xlsx') == True:
+				writer=pd.ExcelWriter('all_finance_sheet.xlsx',mode='a')
+				data.to_excel(writer,sheet_name=l[i])
+			else:
+				writer=pd.ExcelWriter('all_finance_sheet.xlsx')
+				data.to_excel(writer,sheet_name=l[i])
+			print('The stock finance has write:',l[i])
+			writer.save()
+	writer.close()
+
+
+
+
+
+
+###################---main()---###################
+if __name__=="__main__":
+	
+	getFinanceTableList()
+#	finance_url='http://quotes.money.163.com/f10/zycwzb_600016.html#01c01'		#财务数据网址
+#	price_url='http://quotes.money.163.com/0600016.html#01a01'			#价格网址
+#
+#	finance_html=getHTMLText(finance_url)				#获取财务数据网页
+#	finance_ls=getTableList(finance_html)				#获取财务数据
+#
+#	phtml=getHTMLText(price_url)					#获得最新股票价格网页
+#	new_price=getPrice(phtml)					#获得最新股票价格
+#
+#	calculat(new_price,finance_ls)					#计算结果
+
+#	stockList=getAllStockList(slhtml)					#获得股票清单
