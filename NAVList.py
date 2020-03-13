@@ -71,7 +71,7 @@ def getNAVList():
 			navlist.insert(0,'每股净资产')					#插入一个index
 			print('navlist is :',len(navlist))		
 #			print(navlist)
-			wb=load_workbook('all_finance_sheet.xlsx')			#打开原财务数据文件
+			wb=load_workbook('all_finance_sheet_done.xlsx')			#打开原财务数据文件
 			sheet=wb.get_sheet_by_name(l[i])				#获得sheet
 			print('origin is:',sheet.max_column)
 			k=0
@@ -80,11 +80,12 @@ def getNAVList():
 					break
 				cell.value=navlist[k]
 				k=k+1
+#				print(cell.value)
 			print('The sheet have saved:',l[i])
 			count+=1
 			print('It have saved:',count)
-	wb.save('all_finance_sheet_done.xlsx')
-			
+			wb.save('all_finance_sheet_done.xlsx')
+			wb.close()			
 '''
 			lsn.insert(0,'时间')
 			npdata=np.array(ls)
