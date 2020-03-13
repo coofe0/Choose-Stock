@@ -19,13 +19,28 @@ def getStockList():
 		for i in range(len(t)):
 			t[i]=t[i][:6]
 		print(t)
-	
+		return t	
+
+def getdata():
+	t=getStockList()
+	ls=[]
+	for i in range(len(t)):
+		stock = Stock(t[i])
+		PE,PB=stock.calculatePEPB()
+		l=[stock.name,stock.code,stock.price,PE,PB]
+		s=pd.Series(l)
+		ls.append(s)
+		print(l)
+	df=pd.DataFrame(ls)
+	df.columns=['name','stock','price','PE','PB']
+	print(df)
+	df.to_excel('choosedata.xlsx')
 
 def main():
-#	getStockList()
-	stock = Stock('600052')
-#	stock.getStockPrice()
-	stock.calculatePEPB()
+	dt=pd.read_excel('choosedata.xlsx')
+	print(dt)
+	print(dt.describe())
+	dt.plot()
 
 ###################---main()---###################
 if __name__=="__main__":
